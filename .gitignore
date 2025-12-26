@@ -1,0 +1,11 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+.idea/
+Client/Content
+**/obj
+**/bin
+**/.vscode
+**/.config

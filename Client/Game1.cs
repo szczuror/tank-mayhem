@@ -207,6 +207,15 @@ public class Game1 : Game
         _groundTexture = Content.Load<Texture2D>("assets/Texture/TXTilesetGrass");
     }
     
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _networkClient?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+    
     
 
     protected override void Update(GameTime gameTime)
@@ -272,11 +281,13 @@ public class Game1 : Game
 
             bool bulletRemoved = false;
 
-            if (b.PlayerId == _myTank.Id)
+            // Check collision with all tanks
+            foreach (var other in _otherTanks.Values)
             {
-                foreach (var other in _otherTanks.Values)
+                if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < TankRadius)
                 {
-                    if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < TankRadius)
+                    // If this is our bullet, handle damage
+                    if (b.PlayerId == _myTank.Id)
                     {
                         if (other.Health <= DamageAmount)
                         {
@@ -292,23 +303,11 @@ public class Game1 : Game
                         _networkClient.Send(dmgData, dmgData.Length);
                         
                         _explosions.Add(new Explosion { Position = b.Position });
-                        _bullets.RemoveAt(i);
-                        bulletRemoved = true;
-                        break;
                     }
-                }
-            }
-
-            if (!bulletRemoved)
-            {
-                foreach (var other in _otherTanks.Values)
-                {
-                    if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < TankRadius)
-                    {
-                        _bullets.RemoveAt(i);
-                        bulletRemoved = true;
-                        break;
-                    }
+                    
+                    _bullets.RemoveAt(i);
+                    bulletRemoved = true;
+                    break;
                 }
             }
 
@@ -580,57 +579,4 @@ public class Game1 : Game
         
         base.Draw(gameTime);
     }
-}
-
-public class Bullet {
-    public byte PlayerId;
-    public Vector2 Position;
-    public float Rotation;
-    public float Speed = 20f;
-    public float Lifetime = 2.0f;
-}
-
-public class Animation
-{
-    public List<Rectangle> Frames { get; set; }
-    public TimeSpan Delay { get; set; }
-
-    public Animation(int frameWidth, int frameHeight, int frameCount, int msDelay)
-    {
-        Frames = new List<Rectangle>();
-        for (int i = 0; i < frameCount; i++)
-        {
-            Frames.Add(new Rectangle(i * frameWidth, 0, frameWidth, frameHeight));
-        }
-        Delay = TimeSpan.FromMilliseconds(msDelay);
-    }
-}
-
-public class Explosion 
-{
-    public Vector2 Position;
-    public int CurrentFrame = 0;
-    public TimeSpan Elapsed = TimeSpan.Zero;
-    public bool Finished = false;
-
-    public void Update(GameTime gameTime, Animation animation)
-    {
-        Elapsed += gameTime.ElapsedGameTime;
-        if (Elapsed >= animation.Delay)
-        {
-            Elapsed -= animation.Delay;
-            CurrentFrame++;
-            if (CurrentFrame >= animation.Frames.Count)
-            {
-                Finished = true;
-            }
-        }
-    }
-}
-
-public class KillMessage
-{
-    public string Text;
-    public float Timer = 5.0f;
-    public Color Color = Color.White;
 }

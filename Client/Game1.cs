@@ -48,30 +48,6 @@ public class Game1 : Game
     private bool _isEnteringNick = true;
     private string _nickBuffer = "";
     
-    // Constants for gameplay
-    private const float TankSpeed = 4.5f;
-    private const float TankRotationSpeed = 0.025f;
-    private const float TurretRotationSpeedDegrees = 90f;
-    private const float TankRadius = 60f;
-    private const float BarrelLength = 150f;
-    private const int DamageAmount = 35;
-    private const float BulletSpeed = 20f;
-    private const float BulletLifetime = 2.0f;
-    private const int MaxNicknameLength = 15;
-    private const float RotationThresholdDegrees = 0.5f;
-    private const float PositionThreshold = 1.0f;
-    private const float ShakeIntensityOnShoot = 35f;
-    private const float ShakeDamping = 0.9f;
-    private const float ShotVolume = 0.5f;
-    private const float ShotPitchVariation = 0.2f;
-    private const int MinSpawnX = 500;
-    private const int MinSpawnY = 500;
-    private const int RespawnMinX = 100;
-    private const int RespawnMaxX = 1280;
-    private const int RespawnMinY = 100;
-    private const int RespawnMaxY = 720;
-    private const float KillFeedDisplayTime = 5.0f;
-    
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
@@ -100,8 +76,8 @@ public class Game1 : Game
                     _myTank = new TankState { 
                         Id = (byte)_random.Next(1, 255), 
                         Name = _nickBuffer, 
-                        X = _random.Next(MinSpawnX, MapWidth - MinSpawnX), 
-                        Y = _random.Next(MinSpawnY, MapHeight - MinSpawnY)
+                        X = _random.Next(GameConstants.MinSpawnX, MapWidth - GameConstants.MinSpawnX), 
+                        Y = _random.Next(GameConstants.MinSpawnY, MapHeight - GameConstants.MinSpawnY)
                     };
     
                     _lastSentTurretRotation = _myTank.TurretRotation;
@@ -112,7 +88,7 @@ public class Game1 : Game
                     UpdateCamera();
                     _isEnteringNick = false;
                 }
-                else if (!char.IsControl(e.Character) && _nickBuffer.Length < MaxNicknameLength)
+                else if (!char.IsControl(e.Character) && _nickBuffer.Length < GameConstants.MaxNicknameLength)
                 {
                     _nickBuffer += e.Character;
                 }
@@ -240,10 +216,10 @@ public class Game1 : Game
         
         if (mState.LeftButton == ButtonState.Pressed && _lastMouseState.LeftButton == ButtonState.Released && _shootTimer <= 0)
         {
-            _shakeIntensity = ShakeIntensityOnShoot;
+            _shakeIntensity = GameConstants.ShakeIntensityOnShoot;
             Vector2 spawnPos = new Vector2(_myTank.X, _myTank.Y) + 
                                new Vector2((float)Math.Cos(_myTank.TurretRotation - MathHelper.PiOver2), 
-                                   (float)Math.Sin(_myTank.TurretRotation - MathHelper.PiOver2)) * BarrelLength;
+                                   (float)Math.Sin(_myTank.TurretRotation - MathHelper.PiOver2)) * GameConstants.BarrelLength;
             
             Vector2 shootDirection = new Vector2(
                 (float)Math.Cos(_myTank.TurretRotation - MathHelper.PiOver2),
@@ -256,8 +232,8 @@ public class Game1 : Game
                 Y = spawnPos.Y,
                 Rotation = _myTank.TurretRotation
             };
-            float randomPitch = (float)(_random.NextDouble() * ShotPitchVariation - ShotPitchVariation / 2);
-            _shotSound.Play(ShotVolume, randomPitch, 0.0f);
+            float randomPitch = (float)(_random.NextDouble() * GameConstants.ShotPitchVariation - GameConstants.ShotPitchVariation / 2);
+            _shotSound.Play(GameConstants.ShotVolume, randomPitch, 0.0f);
             
             byte[] shootData = shootPkt.ToBytes();
             _networkClient.Send(shootData, shootData.Length);
@@ -284,12 +260,12 @@ public class Game1 : Game
             // Check collision with all tanks
             foreach (var other in _otherTanks.Values)
             {
-                if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < TankRadius)
+                if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < GameConstants.TankRadius)
                 {
                     // If this is our bullet, handle damage
                     if (b.PlayerId == _myTank.Id)
                     {
-                        if (other.Health <= DamageAmount)
+                        if (other.Health <= GameConstants.DamageAmount)
                         {
                             _myTank.Kills++;
                             AddToKillFeed(_myTank.Name, other.Name);
@@ -297,7 +273,7 @@ public class Game1 : Game
                         var dmgPkt = new DamagePacket { 
                             TargetId = other.Id, 
                             AttackerId = _myTank.Id,
-                            DamageAmount = DamageAmount
+                            DamageAmount = GameConstants.DamageAmount
                         };
                         byte[] dmgData = dmgPkt.ToBytes();
                         _networkClient.Send(dmgData, dmgData.Length);
@@ -317,14 +293,14 @@ public class Game1 : Game
 
         if (kState.IsKeyDown(Keys.A)) 
         { 
-            _myTank.HullRotation -= TankRotationSpeed; 
-            _myTank.TurretRotation -= TankRotationSpeed;
+            _myTank.HullRotation -= GameConstants.TankRotationSpeed; 
+            _myTank.TurretRotation -= GameConstants.TankRotationSpeed;
             hasChanged = true;
         }
         if (kState.IsKeyDown(Keys.D)) 
         { 
-            _myTank.HullRotation += TankRotationSpeed; 
-            _myTank.TurretRotation += TankRotationSpeed;
+            _myTank.HullRotation += GameConstants.TankRotationSpeed; 
+            _myTank.TurretRotation += GameConstants.TankRotationSpeed;
             hasChanged = true;
         }
         
@@ -335,15 +311,15 @@ public class Game1 : Game
         
         if (kState.IsKeyDown(Keys.W))
         {
-            _myTank.X += directionLooking.X * TankSpeed;
-            _myTank.Y += directionLooking.Y * TankSpeed;
+            _myTank.X += directionLooking.X * GameConstants.TankSpeed;
+            _myTank.Y += directionLooking.Y * GameConstants.TankSpeed;
             hasChanged = true;
         }
         
         if (kState.IsKeyDown(Keys.S))
         {
-            _myTank.X -= directionLooking.X * TankSpeed * 0.5f;
-            _myTank.Y -= directionLooking.Y * TankSpeed * 0.5f;
+            _myTank.X -= directionLooking.X * GameConstants.TankSpeed * 0.5f;
+            _myTank.Y -= directionLooking.Y * GameConstants.TankSpeed * 0.5f;
             hasChanged = true;
         }
         
@@ -375,7 +351,7 @@ public class Game1 : Game
         
         float newTurretRotation = (float)Math.Atan2(direction.Y, direction.X) + MathHelper.PiOver2;
         
-        float turretRotationSpeed = MathHelper.ToRadians(TurretRotationSpeedDegrees);
+        float turretRotationSpeed = MathHelper.ToRadians(GameConstants.TurretRotationSpeedDegrees);
         float angleDiff = MathHelper.WrapAngle(newTurretRotation - _myTank.TurretRotation);
         float maxStep = turretRotationSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
         float previousTurretRotation = _myTank.TurretRotation;
@@ -397,17 +373,17 @@ public class Game1 : Game
         if (_myTank.Health <= 0)
         {
             _myTank.Health = TankState.MaxHealth;
-            _myTank.X = _random.Next(RespawnMinX, RespawnMaxX);
-            _myTank.Y = _random.Next(RespawnMinY, RespawnMaxY);
+            _myTank.X = _random.Next(GameConstants.RespawnMinX, GameConstants.RespawnMaxX);
+            _myTank.Y = _random.Next(GameConstants.RespawnMinY, GameConstants.RespawnMaxY);
             hasChanged = true;
         }
         
         _netSendTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-        float rotThreshold = MathHelper.ToRadians(RotationThresholdDegrees);
+        float rotThreshold = MathHelper.ToRadians(GameConstants.RotationThresholdDegrees);
 
         bool turretMoved = Math.Abs(_myTank.TurretRotation - _lastSentTurretRotation) > rotThreshold;
         bool hullMoved = Math.Abs(_myTank.HullRotation - _lastSentHullRotation) > rotThreshold;
-        bool posMoved = Vector2.Distance(new Vector2(_myTank.X, _myTank.Y), _lastSentPosition) > PositionThreshold;
+        bool posMoved = Vector2.Distance(new Vector2(_myTank.X, _myTank.Y), _lastSentPosition) > GameConstants.PositionThreshold;
         
         for (int i = _explosions.Count - 1; i >= 0; i--)
         {
@@ -451,7 +427,7 @@ public class Game1 : Game
                 (float)(_random.NextDouble() * 2 - 1) * _shakeIntensity
             );
 
-            _shakeIntensity *= ShakeDamping;
+            _shakeIntensity *= GameConstants.ShakeDamping;
         }
         else
         {

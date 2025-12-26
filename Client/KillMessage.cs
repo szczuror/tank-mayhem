@@ -5,6 +5,6 @@ namespace Client;
 public class KillMessage
 {
     public string Text;
-    public float Timer = 5.0f;
+    public float Timer = GameConstants.KillFeedDisplayTime;
     public Color Color = Color.White;
 }

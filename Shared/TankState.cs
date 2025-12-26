@@ -2,6 +2,8 @@
 
 public class TankState
 {
+    public const int MaxHealth = 100;
+    
     public byte Id { get; set; }
     public float X { get; set; }
     public float Y { get; set; }
@@ -9,7 +11,7 @@ public class TankState
     public float HullRotation { get; set; }
     public float TurretRotation { get; set; }
     
-    public int Health { get; set; } = 100;
+    public int Health { get; set; } = MaxHealth;
     public int Kills { get; set; } = 0;
     public string Name { get; set; } = "Player";
     public byte[] ToBytes()

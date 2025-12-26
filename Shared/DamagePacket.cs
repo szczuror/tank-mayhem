@@ -4,6 +4,7 @@ public class DamagePacket
 {
     public byte TargetId { get; set; }
     public int DamageAmount { get; set; }
+    public byte AttackerId { get; set; }
 
     public byte[] ToBytes()
     {
@@ -11,6 +12,7 @@ public class DamagePacket
         using var writer = new BinaryWriter(ms);
         writer.Write((byte)3);
         writer.Write(TargetId);
+        writer.Write(AttackerId);
         writer.Write(DamageAmount);
         return ms.ToArray();
     }
@@ -22,6 +24,7 @@ public class DamagePacket
         reader.ReadByte();
         return new DamagePacket {
             TargetId = reader.ReadByte(),
+            AttackerId = reader.ReadByte(),
             DamageAmount = reader.ReadInt32()
         };
     }

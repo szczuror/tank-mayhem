@@ -44,6 +44,9 @@ public class Game1 : Game
     private Matrix _cameraMatrix;
     private float _shakeIntensity = 0f;
     private Random _random = new Random();
+    private List<KillMessage> _killFeed = new List<KillMessage>();
+    private bool _isEnteringNick = true;
+    private string _nickBuffer = "";
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
@@ -59,12 +62,37 @@ public class Game1 : Game
     {
         _networkClient = new UdpClient();
         _networkClient.Connect("127.0.0.1", 12345);
+        
+        _myTank = null;
+        
+        Window.TextInput += (s, e) => {
+            if (_isEnteringNick)
+            {
+                if (e.Key == Keys.Back && _nickBuffer.Length > 0)
+                    _nickBuffer = _nickBuffer.Remove(_nickBuffer.Length - 1);
+                else if (e.Key == Keys.Enter && _nickBuffer.Length > 0)
+                {
+                    _myTank = new TankState { 
+                        Id = (byte)new Random().Next(1, 255), 
+                        Name = _nickBuffer, 
+                        X = new Random().Next(500, MapWidth - 500), 
+                        Y = new Random().Next(500, MapHeight - 500)
+                    };
+    
+                    _lastSentTurretRotation = _myTank.TurretRotation;
 
-        _myTank = new TankState { Id = (byte)new Random().Next(1, 255), X = 100, Y = 100};
-        _lastSentTurretRotation = _myTank.TurretRotation;
+                    byte[] data = _myTank.ToBytes();
+                    _networkClient.Send(data, data.Length);
 
-        byte[] data = _myTank.ToBytes();
-        _networkClient.Send(data, data.Length);
+                    UpdateCamera();
+                    _isEnteringNick = false;
+                }
+                else if (!char.IsControl(e.Character) && _nickBuffer.Length < 15)
+                {
+                    _nickBuffer += e.Character;
+                }
+            }
+        };
 
         Task.Run((() => ListenFromServer()));
         
@@ -92,14 +120,26 @@ public class Game1 : Game
                 else if (result.Buffer[0] == 3)
                 {
                     var incomingDmg = DamagePacket.FromBytes(result.Buffer);
-
-                    if (incomingDmg.TargetId == _myTank.Id)
+                    
+                    if (_myTank == null) continue;
+                    
+                    string killerName = "UNKNOWN";
+                    if (incomingDmg.AttackerId == _myTank.Id) killerName = _myTank.Name;
+                    else if (_otherTanks.ContainsKey(incomingDmg.AttackerId)) killerName = _otherTanks[incomingDmg.AttackerId].Name;
+                    
+                    TankState victim = null;
+                    
+                    if (incomingDmg.TargetId == _myTank.Id) victim = _myTank;
+                    else if (_otherTanks.ContainsKey(incomingDmg.TargetId)) victim = _otherTanks[incomingDmg.TargetId];
+                    
+                    if (victim != null)
                     {
-                        _myTank.Health -= incomingDmg.DamageAmount;
-                    }
-                    else if (_otherTanks.ContainsKey(incomingDmg.TargetId))
-                    {
-                        _otherTanks[incomingDmg.TargetId].Health -= incomingDmg.DamageAmount;
+                        if (victim.Health > 0 && victim.Health - incomingDmg.DamageAmount <= 0)
+                        {
+                            AddToKillFeed(killerName, victim.Name);
+                        }
+        
+                        victim.Health -= incomingDmg.DamageAmount;
                     }
                 }
             }
@@ -119,6 +159,13 @@ public class Game1 : Game
         });
     }
 
+    private void AddToKillFeed(string killer, string victim)
+    {
+        _killFeed.Insert(0, new KillMessage { 
+            Text = $"{killer} -> {victim}",
+            Color = killer == _myTank.Name ? Color.Yellow : Color.White 
+        });
+    }
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
@@ -139,6 +186,11 @@ public class Game1 : Game
 
     protected override void Update(GameTime gameTime)
     {
+        if (_isEnteringNick || _myTank == null) 
+        {
+            return; 
+        }
+        
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
             Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
@@ -210,9 +262,11 @@ public class Game1 : Game
                         if (other.Health <= damageAmount)
                         {
                             _myTank.Kills++;
+                            AddToKillFeed(_myTank.Name, other.Name);
                         }
                         var dmgPkt = new DamagePacket { 
                             TargetId = other.Id, 
+                            AttackerId = _myTank.Id,
                             DamageAmount = damageAmount
                         };
                         byte[] dmgData = dmgPkt.ToBytes();
@@ -417,6 +471,10 @@ public class Game1 : Game
     _spriteBatch.Draw(_turretTexture, tankPosition, null, Color.White, 
         tank.TurretRotation, turretOrigin, 1.0f, SpriteEffects.None, 0f);
     
+    Vector2 nameSize = _scoreFont.MeasureString(tank.Name);
+    Vector2 namePos = new Vector2(tank.X - nameSize.X / 2, tank.Y - 150);
+    _spriteBatch.DrawString(_scoreFont, tank.Name, namePos, Color.White);
+    
     Vector2 barPos = new Vector2(tank.X - 50, tank.Y - 120);
     int barWidth = 100;
     int currentHpWidth = (int)(barWidth * (tank.Health / 100f));
@@ -427,7 +485,24 @@ public class Game1 : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(Color.CornflowerBlue);
+        GraphicsDevice.Clear(Color.Brown);
+        
+        if (_isEnteringNick)
+        {
+            GraphicsDevice.Clear(Color.Black);
+            _spriteBatch.Begin();
+            string prompt = "ENTER YOUR NICKNAME:";
+            Vector2 promptSize = _scoreFont.MeasureString(prompt);
+            Vector2 nickSize = _scoreFont.MeasureString(_nickBuffer + "_");
+            Vector2 center = new Vector2(GraphicsDevice.Viewport.Width / 2, GraphicsDevice.Viewport.Height / 2);
+
+            _spriteBatch.DrawString(_scoreFont, prompt, center - new Vector2(promptSize.X / 2, 50), Color.White);
+            _spriteBatch.DrawString(_scoreFont, _nickBuffer + "_", center - new Vector2(nickSize.X / 2, -20), Color.Yellow);
+        
+            _spriteBatch.End();
+            return;
+        }
+        
         _spriteBatch.Begin(transformMatrix: _cameraMatrix, samplerState: SamplerState.LinearWrap);       
         
         for (int x = 0; x < MapWidth; x += _groundTexture.Width)
@@ -461,6 +536,20 @@ public class Game1 : Game
         _spriteBatch.End();
         
         _spriteBatch.Begin();
+        
+        int feedY = 20;
+        foreach (var msg in _killFeed)
+        {
+            _spriteBatch.DrawString(_scoreFont, msg.Text, new Vector2(1602, feedY + 2), Color.Black * 0.5f);
+            _spriteBatch.DrawString(_scoreFont, msg.Text, new Vector2(1600, feedY), msg.Color);
+            feedY += 30;
+        }
+        for (int i = _killFeed.Count - 1; i >= 0; i--)
+        {
+            _killFeed[i].Timer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_killFeed[i].Timer <= 0) _killFeed.RemoveAt(i);
+        }
+        
         _spriteBatch.DrawString(_scoreFont, $"Kills: {_myTank.Kills}", new Vector2(20, 20), Color.Yellow);
 
         int offset = 50;
@@ -468,7 +557,7 @@ public class Game1 : Game
         foreach (var other in _otherTanks.Values)
         {
             offset += 25;
-            _spriteBatch.DrawString(_scoreFont, $"Player {other.Id}: {other.Kills} kills", new Vector2(20, offset), Color.LightGray);
+            _spriteBatch.DrawString(_scoreFont, $"{other.Name}: {other.Kills} kills", new Vector2(20, offset), Color.LightGray);
         }
         _spriteBatch.End();
         
@@ -520,4 +609,11 @@ public class Explosion
             }
         }
     }
+}
+
+public class KillMessage
+{
+    public string Text;
+    public float Timer = 5.0f;
+    public Color Color = Color.White;
 }

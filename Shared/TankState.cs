@@ -11,12 +11,14 @@ public class TankState
     
     public int Health { get; set; } = 100;
     public int Kills { get; set; } = 0;
+    public string Name { get; set; } = "Player";
     public byte[] ToBytes()
     {
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms);
         writer.Write((byte)1);
         writer.Write(Id);
+        writer.Write(Name);
         writer.Write(X);
         writer.Write(Y);
         writer.Write(HullRotation);
@@ -33,6 +35,7 @@ public class TankState
         reader.ReadByte();
         return new TankState {
             Id = reader.ReadByte(),
+            Name = reader.ReadString(),
             X = reader.ReadSingle(),
             Y = reader.ReadSingle(),
             HullRotation = reader.ReadSingle(),

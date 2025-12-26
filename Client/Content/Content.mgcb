@@ -13,6 +13,12 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin assets/AUDIO/reload.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:assets/AUDIO/reload.wav
+
 #begin assets/AUDIO/shot.wav
 /importer:WavImporter
 /processor:SoundEffectProcessor

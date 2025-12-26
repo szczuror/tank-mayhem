@@ -6,7 +6,7 @@ public static class GameConstants
     public const float TankSpeed = 4.5f;
     public const float TankRotationSpeed = 0.025f;
     public const float TurretRotationSpeedDegrees = 90f;
-    public const float TankRadius = 60f;
+    public const float TankRadius = 150f;
     public const float BarrelLength = 150f;
     public const int DamageAmount = 35;
     public const float BulletSpeed = 20f;

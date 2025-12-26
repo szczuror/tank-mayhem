@@ -39,7 +39,7 @@ public class Game1 : Game
     private const int MapWidth = 3072;
     private const int MapHeight = 3072;
     private Texture2D _groundTexture;
-    private SoundEffect _shotSound;
+    private SoundEffect _shotSound, _reloadSound;
     private Matrix _cameraMatrix;
     private float _shakeIntensity = 0f;
     private Random _random = new Random();
@@ -134,6 +134,7 @@ public class Game1 : Game
                     
                     if (victim != null)
                     {
+                        // _explosions.Add(new Explosion { Position = new Vector2(victim.X, victim.Y) }); // TODO nie wiem czy potrzebne
                         if (victim.Health > 0 && victim.Health - incomingDmg.DamageAmount <= 0)
                         {
                             AddToKillFeed(killerName, victim.Name);
@@ -174,6 +175,7 @@ public class Game1 : Game
         _tracksTexture = Content.Load<Texture2D>("assets/PNG/Tracks/Track_1_A.png");
         _bulletTexture = Content.Load<Texture2D>("assets/PNG/Effects/Medium_Shell");
         _shotSound = Content.Load<SoundEffect>("assets/AUDIO/shot");
+        _reloadSound = Content.Load<SoundEffect>("assets/AUDIO/reload");
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData(new[] { Color.White });
         _scoreFont = Content.Load<SpriteFont>("ScoreFont");
@@ -211,7 +213,14 @@ public class Game1 : Game
         UpdateCamera();
         
         if (_shootTimer > 0)
+        {
             _shootTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_shootTimer <= 0)
+            {
+                _shootTimer = 0;
+                _reloadSound.Play(); 
+            }
+        }
         
         if (mState.LeftButton == ButtonState.Pressed && _lastMouseState.LeftButton == ButtonState.Released && _shootTimer <= 0)
         {
@@ -257,12 +266,21 @@ public class Game1 : Game
             bool bulletRemoved = false;
 
             // Check collision with all tanks
-            foreach (var other in _otherTanks.Values)
+            List<TankState> allTanks = new List<TankState>(_otherTanks.Values);
+            if (_myTank != null) allTanks.Add(_myTank);
+            
+            foreach (var other in allTanks)
             {
                 if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < GameConstants.TankRadius)
                 {
-                    // If this is our bullet, handle damage
-                    if (b.PlayerId == _myTank.Id)
+                    _explosions.Add(new Explosion { Position = b.Position });
+            
+                    if (other.Id == _myTank.Id)
+                    {
+                        _shakeIntensity = GameConstants.ShakeIntensityOnShoot * 0.5f; // Drżenie ekranu gdy oberwiemy
+                    }
+                    
+                    if (b.PlayerId == _myTank.Id && other.Id != _myTank.Id)
                     {
                         if (other.Health <= GameConstants.DamageAmount)
                         {
@@ -276,8 +294,6 @@ public class Game1 : Game
                         };
                         byte[] dmgData = dmgPkt.ToBytes();
                         _networkClient.Send(dmgData, dmgData.Length);
-                        
-                        _explosions.Add(new Explosion { Position = b.Position });
                     }
                     
                     _bullets.RemoveAt(i);
@@ -435,7 +451,7 @@ public class Game1 : Game
         
         _cameraMatrix = Matrix.CreateTranslation(-_myTank.X + shakeOffset.X, -_myTank.Y + shakeOffset.Y, 0) * Matrix.CreateTranslation(screenCenter.X, screenCenter.Y, 0);
     }
-    private void DrawTank(TankState tank)
+    private void DrawTank(TankState tank, float reloadProgress)
 {
     Vector2 tankPosition = new Vector2(tank.X, tank.Y);
 
@@ -466,17 +482,28 @@ public class Game1 : Game
     // turret
     _spriteBatch.Draw(_turretTexture, tankPosition, null, Color.White, 
         tank.TurretRotation, turretOrigin, 1.0f, SpriteEffects.None, 0f);
-    
+    // nick
     Vector2 nameSize = _scoreFont.MeasureString(tank.Name);
     Vector2 namePos = new Vector2(tank.X - nameSize.X / 2, tank.Y - 150);
     _spriteBatch.DrawString(_scoreFont, tank.Name, namePos, Color.White);
-    
+    // hp
     Vector2 barPos = new Vector2(tank.X - 50, tank.Y - 120);
     int barWidth = 100;
     int currentHpWidth = (int)(barWidth * (tank.Health / (float)TankState.MaxHealth));
 
     _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, (int)barPos.Y, barWidth, 10), Color.Red);
     _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, (int)barPos.Y, currentHpWidth, 10), Color.Green);
+    
+    // reload
+    if (reloadProgress < 1.0f)
+    {
+        int reloadBarHeight = 5;
+        int reloadY = (int)barPos.Y + 12;
+        int currentReloadWidth = (int)(barWidth * reloadProgress);
+
+        _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, reloadY, barWidth, reloadBarHeight), Color.Black * 0.5f);
+        _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, reloadY, currentReloadWidth, reloadBarHeight), Color.Yellow);
+    }
 }
 
     protected override void Draw(GameTime gameTime)
@@ -515,10 +542,11 @@ public class Game1 : Game
             _spriteBatch.Draw(_bulletTexture, b.Position, null, Color.White, b.Rotation, bulletOrigin, 1f, SpriteEffects.None, 0f);
         }
 
-        DrawTank(_myTank);        
+        float reloadProgress = (ShootDelay - _shootTimer) / ShootDelay;
+        DrawTank(_myTank, reloadProgress);        
         foreach (var tank in _otherTanks.Values)
         {
-            DrawTank(tank);
+            DrawTank(tank, 1.0f);
         }
         
         foreach (var ex in _explosions)

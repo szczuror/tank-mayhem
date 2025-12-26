@@ -31,7 +31,6 @@ public class Game1 : Game
     private const float RecoilStrength = 150f;
     private Vector2 _recoilVelocity = Vector2.Zero;
     private const float RecoilPower = 12f;
-    private const float RecoilDamping = 0.85f;
     private Texture2D _pixel;
     private SpriteFont _scoreFont;
     private Texture2D _explosionSheet;
@@ -329,7 +328,7 @@ public class Game1 : Game
             _myTank.X += _recoilVelocity.X;
             _myTank.Y += _recoilVelocity.Y;
 
-            _recoilVelocity *= RecoilDamping;
+            _recoilVelocity *= GameConstants.RecoilDamping;
 
             hasChanged = true;
         }

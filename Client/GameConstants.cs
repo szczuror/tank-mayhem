@@ -25,4 +25,5 @@ public static class GameConstants
     public const int RespawnMinY = 100;
     public const int RespawnMaxY = 720;
     public const float KillFeedDisplayTime = 5.0f;
+    public const float RecoilDamping = 0.85f;
 }

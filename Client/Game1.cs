@@ -48,6 +48,9 @@ public class Game1 : Game
     private bool _isEnteringNick = true;
     private string _nickBuffer = "";
     
+    // Track total game time for velocity calculations
+    private double _totalGameTime = 0;
+    
     private List<Rectangle> _obstacles = new List<Rectangle>();
     private List<string> _mapLines = new List<string>();
     private int _tileSize = 256;
@@ -120,14 +123,26 @@ public class Game1 : Game
                 if (result.Buffer[0] == 1)
                 {
                     var incomingTank = TankState.FromBytes(result.Buffer);
+                    
                     if (_otherTanks.ContainsKey(incomingTank.Id))
                     {
                         var existing = _otherTanks[incomingTank.Id];
+                        
+                        // Calculate velocity based on position change
+                        double timeDelta = _totalGameTime - existing.LastUpdateTime;
+                        if (timeDelta > 0)
+                        {
+                            incomingTank.VelocityX = (incomingTank.X - existing.TargetX) / (float)timeDelta;
+                            incomingTank.VelocityY = (incomingTank.Y - existing.TargetY) / (float)timeDelta;
+                        }
         
                         existing.TargetX = incomingTank.X;
                         existing.TargetY = incomingTank.Y;
                         existing.TargetHullRotation = incomingTank.HullRotation;
                         existing.TargetTurretRotation = incomingTank.TurretRotation;
+                        existing.VelocityX = incomingTank.VelocityX;
+                        existing.VelocityY = incomingTank.VelocityY;
+                        existing.LastUpdateTime = _totalGameTime;
         
                         existing.Health = incomingTank.Health;
                         existing.Kills = incomingTank.Kills;
@@ -138,6 +153,7 @@ public class Game1 : Game
                         incomingTank.TargetY = incomingTank.Y;
                         incomingTank.TargetHullRotation = incomingTank.HullRotation;
                         incomingTank.TargetTurretRotation = incomingTank.TurretRotation;
+                        incomingTank.LastUpdateTime = _totalGameTime;
                         _otherTanks[incomingTank.Id] = incomingTank;
                     }
                 }
@@ -241,17 +257,53 @@ public class Game1 : Game
         var mState = Mouse.GetState();
         bool hasChanged = false;
         
+        // Update total game time for interpolation
+        _totalGameTime += gameTime.ElapsedGameTime.TotalSeconds;
+        
         UpdateCamera();
 
+        // Improved interpolation with dead reckoning
         foreach (var other in _otherTanks.Values)
         {
-            other.X = MathHelper.Lerp(other.X, other.TargetX, GameConstants.Smoothing);
-            other.Y = MathHelper.Lerp(other.Y, other.TargetY, GameConstants.Smoothing);
+            // Calculate time since last update
+            double timeSinceUpdate = _totalGameTime - other.LastUpdateTime;
+            
+            // Adaptive smoothing based on distance to target (using squared distance for performance)
+            float dx = other.X - other.TargetX;
+            float dy = other.Y - other.TargetY;
+            float distanceSquared = dx * dx + dy * dy;
+            float thresholdSquared = GameConstants.SmoothingDistanceThreshold * GameConstants.SmoothingDistanceThreshold;
+            
+            // Use faster smoothing when far from target, slower when close
+            float adaptiveSmoothingFactor = MathHelper.Lerp(
+                GameConstants.SmoothingFactorNear,
+                GameConstants.SmoothingFactorFar,
+                MathHelper.Clamp(distanceSquared / thresholdSquared, 0f, 1f)
+            );
+            
+            // Dead reckoning: extrapolate based on velocity if updates are delayed
+            if (other.LastUpdateTime > 0 && timeSinceUpdate < GameConstants.MaxExtrapolationTime && timeSinceUpdate > 0)
+            {
+                // Predict position based on velocity
+                float predictedX = other.TargetX + other.VelocityX * (float)timeSinceUpdate;
+                float predictedY = other.TargetY + other.VelocityY * (float)timeSinceUpdate;
+                
+                // Interpolate towards predicted position
+                other.X = MathHelper.Lerp(other.X, predictedX, adaptiveSmoothingFactor);
+                other.Y = MathHelper.Lerp(other.Y, predictedY, adaptiveSmoothingFactor);
+            }
+            else
+            {
+                // Normal interpolation without prediction
+                other.X = MathHelper.Lerp(other.X, other.TargetX, adaptiveSmoothingFactor);
+                other.Y = MathHelper.Lerp(other.Y, other.TargetY, adaptiveSmoothingFactor);
+            }
 
+            // Improved angle interpolation with wrap-around handling
             other.HullRotation += MathHelper.WrapAngle(other.TargetHullRotation - other.HullRotation) *
-                                  GameConstants.Smoothing;
+                                  adaptiveSmoothingFactor;
             other.TurretRotation += MathHelper.WrapAngle(other.TargetTurretRotation - other.TurretRotation) *
-                                    GameConstants.Smoothing;
+                                    adaptiveSmoothingFactor;
         }
 
         if (_shootTimer > 0)
@@ -307,13 +359,20 @@ public class Game1 : Game
 
             bool bulletRemoved = false;
 
-            // Check collision with all tanks
+            // Check collision with all tanks - using squared distance for better performance
             List<TankState> allTanks = new List<TankState>(_otherTanks.Values);
             if (_myTank != null) allTanks.Add(_myTank);
             
+            float tankRadiusSquared = GameConstants.TankRadius * GameConstants.TankRadius;
+            
             foreach (var other in allTanks)
             {
-                if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < GameConstants.TankRadius)
+                // Use squared distance to avoid expensive sqrt operation
+                float dx = b.Position.X - other.X;
+                float dy = b.Position.Y - other.Y;
+                float distanceSquared = dx * dx + dy * dy;
+                
+                if (distanceSquared < tankRadiusSquared)
                 {
                     _explosions.Add(new Explosion { Position = b.Position });
             

@@ -52,8 +52,10 @@ public class Game1 : Game
     private List<string> _mapLines = new List<string>();
     private int _tileSize = 256;
     private Texture2D _wallTexture;
+
+    private string _serverIp;
     
-    public Game1()
+    public Game1(string ip)
     {
         _graphics = new GraphicsDeviceManager(this);
         _graphics.PreferredBackBufferWidth = 1920;
@@ -62,12 +64,13 @@ public class Game1 : Game
         
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
+        _serverIp = ip;
     }
 
     protected override void Initialize()
     {
         _networkClient = new UdpClient();
-        _networkClient.Connect("127.0.0.1", 12345);
+        _networkClient.Connect(_serverIp, 12345);
         
         _myTank = null;
         

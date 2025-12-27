@@ -9,7 +9,7 @@ public static class GameConstants
     public const float BarrelLength = 150f;
     public const int DamageAmount = 35;
     public const float BulletSpeed = 20f;
-    public const float BulletLifetime = 2.0f;
+    public const float BulletLifetime = 4.0f;
     public const int MaxNicknameLength = 15;
     public const float RotationThresholdDegrees = 0.5f;
     public const float PositionThreshold = 1.0f;

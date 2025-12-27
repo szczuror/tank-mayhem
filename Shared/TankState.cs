@@ -15,6 +15,13 @@ public class TankState
     public float TargetY { get; set; }
     public float TargetHullRotation { get; set; }
     public float TargetTurretRotation { get; set; }
+    
+    // Velocity for better interpolation
+    public float VelocityX { get; set; }
+    public float VelocityY { get; set; }
+    
+    // Last update timestamp for interpolation buffer
+    public double LastUpdateTime { get; set; }
 
     public byte[] ToBytes()
     {

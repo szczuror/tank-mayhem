@@ -26,4 +26,11 @@ public static class GameConstants
     public const float KillFeedDisplayTime = 5.0f;
     public const float RecoilDamping = 0.85f;
     public const float Smoothing = 0.15f;
+    
+    // Improved interpolation constants
+    public const float InterpolationDelay = 0.1f; // 100ms buffer for smoother playback
+    public const float MaxExtrapolationTime = 0.5f; // Max time to predict ahead
+    public const float MinSmoothingFactor = 0.1f; // Faster interpolation when far from target
+    public const float MaxSmoothingFactor = 0.3f; // Slower interpolation when close to target
+    public const float SmoothingDistanceThreshold = 100f; // Distance at which to adjust smoothing
 }

@@ -48,6 +48,10 @@ public class Game1 : Game
     private bool _isEnteringNick = true;
     private string _nickBuffer = "";
     
+    // Improved interpolation support
+    private Dictionary<byte, Queue<TankStateSnapshot>> _interpolationBuffer = new Dictionary<byte, Queue<TankStateSnapshot>>();
+    private double _totalGameTime = 0;
+    
     private List<Rectangle> _obstacles = new List<Rectangle>();
     private List<string> _mapLines = new List<string>();
     private int _tileSize = 256;
@@ -120,17 +124,52 @@ public class Game1 : Game
                 if (result.Buffer[0] == 1)
                 {
                     var incomingTank = TankState.FromBytes(result.Buffer);
+                    
                     if (_otherTanks.ContainsKey(incomingTank.Id))
                     {
                         var existing = _otherTanks[incomingTank.Id];
+                        
+                        // Calculate velocity based on position change
+                        double timeDelta = _totalGameTime - existing.LastUpdateTime;
+                        if (timeDelta > 0)
+                        {
+                            incomingTank.VelocityX = (incomingTank.X - existing.TargetX) / (float)timeDelta;
+                            incomingTank.VelocityY = (incomingTank.Y - existing.TargetY) / (float)timeDelta;
+                        }
         
                         existing.TargetX = incomingTank.X;
                         existing.TargetY = incomingTank.Y;
                         existing.TargetHullRotation = incomingTank.HullRotation;
                         existing.TargetTurretRotation = incomingTank.TurretRotation;
+                        existing.VelocityX = incomingTank.VelocityX;
+                        existing.VelocityY = incomingTank.VelocityY;
+                        existing.LastUpdateTime = _totalGameTime;
         
                         existing.Health = incomingTank.Health;
                         existing.Kills = incomingTank.Kills;
+                        
+                        // Add to interpolation buffer
+                        if (!_interpolationBuffer.ContainsKey(incomingTank.Id))
+                        {
+                            _interpolationBuffer[incomingTank.Id] = new Queue<TankStateSnapshot>();
+                        }
+                        
+                        _interpolationBuffer[incomingTank.Id].Enqueue(new TankStateSnapshot
+                        {
+                            X = incomingTank.X,
+                            Y = incomingTank.Y,
+                            HullRotation = incomingTank.HullRotation,
+                            TurretRotation = incomingTank.TurretRotation,
+                            Timestamp = _totalGameTime,
+                            VelocityX = incomingTank.VelocityX,
+                            VelocityY = incomingTank.VelocityY
+                        });
+                        
+                        // Keep buffer size manageable (max 10 snapshots)
+                        while (_interpolationBuffer[incomingTank.Id].Count > 10)
+                        {
+                            _interpolationBuffer[incomingTank.Id].Dequeue();
+                        }
                     }
                     else
                     {
@@ -138,7 +177,21 @@ public class Game1 : Game
                         incomingTank.TargetY = incomingTank.Y;
                         incomingTank.TargetHullRotation = incomingTank.HullRotation;
                         incomingTank.TargetTurretRotation = incomingTank.TurretRotation;
+                        incomingTank.LastUpdateTime = _totalGameTime;
                         _otherTanks[incomingTank.Id] = incomingTank;
+                        
+                        // Initialize interpolation buffer
+                        _interpolationBuffer[incomingTank.Id] = new Queue<TankStateSnapshot>();
+                        _interpolationBuffer[incomingTank.Id].Enqueue(new TankStateSnapshot
+                        {
+                            X = incomingTank.X,
+                            Y = incomingTank.Y,
+                            HullRotation = incomingTank.HullRotation,
+                            TurretRotation = incomingTank.TurretRotation,
+                            Timestamp = _totalGameTime,
+                            VelocityX = 0,
+                            VelocityY = 0
+                        });
                     }
                 }
                 else if (result.Buffer[0] == 2)
@@ -241,17 +294,53 @@ public class Game1 : Game
         var mState = Mouse.GetState();
         bool hasChanged = false;
         
+        // Update total game time for interpolation
+        _totalGameTime += gameTime.ElapsedGameTime.TotalSeconds;
+        
         UpdateCamera();
 
+        // Improved interpolation with dead reckoning
         foreach (var other in _otherTanks.Values)
         {
-            other.X = MathHelper.Lerp(other.X, other.TargetX, GameConstants.Smoothing);
-            other.Y = MathHelper.Lerp(other.Y, other.TargetY, GameConstants.Smoothing);
+            // Calculate time since last update
+            double timeSinceUpdate = _totalGameTime - other.LastUpdateTime;
+            
+            // Adaptive smoothing based on distance to target
+            float distanceToTarget = Vector2.Distance(
+                new Vector2(other.X, other.Y),
+                new Vector2(other.TargetX, other.TargetY)
+            );
+            
+            // Use faster smoothing when far from target, slower when close
+            float adaptiveSmoothingFactor = MathHelper.Lerp(
+                GameConstants.MaxSmoothingFactor,
+                GameConstants.MinSmoothingFactor,
+                MathHelper.Clamp(distanceToTarget / GameConstants.SmoothingDistanceThreshold, 0f, 1f)
+            );
+            
+            // Dead reckoning: extrapolate based on velocity if updates are delayed
+            if (timeSinceUpdate < GameConstants.MaxExtrapolationTime && timeSinceUpdate > 0)
+            {
+                // Predict position based on velocity
+                float predictedX = other.TargetX + other.VelocityX * (float)timeSinceUpdate;
+                float predictedY = other.TargetY + other.VelocityY * (float)timeSinceUpdate;
+                
+                // Interpolate towards predicted position
+                other.X = MathHelper.Lerp(other.X, predictedX, adaptiveSmoothingFactor);
+                other.Y = MathHelper.Lerp(other.Y, predictedY, adaptiveSmoothingFactor);
+            }
+            else
+            {
+                // Normal interpolation without prediction
+                other.X = MathHelper.Lerp(other.X, other.TargetX, adaptiveSmoothingFactor);
+                other.Y = MathHelper.Lerp(other.Y, other.TargetY, adaptiveSmoothingFactor);
+            }
 
+            // Improved angle interpolation with wrap-around handling
             other.HullRotation += MathHelper.WrapAngle(other.TargetHullRotation - other.HullRotation) *
-                                  GameConstants.Smoothing;
+                                  adaptiveSmoothingFactor;
             other.TurretRotation += MathHelper.WrapAngle(other.TargetTurretRotation - other.TurretRotation) *
-                                    GameConstants.Smoothing;
+                                    adaptiveSmoothingFactor;
         }
 
         if (_shootTimer > 0)
@@ -661,4 +750,16 @@ public class Game1 : Game
         
         base.Draw(gameTime);
     }
+}
+
+// Helper class for interpolation buffer
+public class TankStateSnapshot
+{
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float HullRotation { get; set; }
+    public float TurretRotation { get; set; }
+    public double Timestamp { get; set; }
+    public float VelocityX { get; set; }
+    public float VelocityY { get; set; }
 }

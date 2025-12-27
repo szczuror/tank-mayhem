@@ -276,13 +276,13 @@ public class Game1 : Game
             
             // Use faster smoothing when far from target, slower when close
             float adaptiveSmoothingFactor = MathHelper.Lerp(
-                GameConstants.MaxSmoothingFactor,
                 GameConstants.MinSmoothingFactor,
+                GameConstants.MaxSmoothingFactor,
                 MathHelper.Clamp(distanceSquared / thresholdSquared, 0f, 1f)
             );
             
             // Dead reckoning: extrapolate based on velocity if updates are delayed
-            if (timeSinceUpdate < GameConstants.MaxExtrapolationTime && timeSinceUpdate > 0)
+            if (other.LastUpdateTime > 0 && timeSinceUpdate < GameConstants.MaxExtrapolationTime && timeSinceUpdate > 0)
             {
                 // Predict position based on velocity
                 float predictedX = other.TargetX + other.VelocityX * (float)timeSinceUpdate;

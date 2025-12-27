@@ -59,9 +59,11 @@ float dy = other.Y - other.TargetY;
 float distanceSquared = dx * dx + dy * dy;
 float thresholdSquared = GameConstants.SmoothingDistanceThreshold * GameConstants.SmoothingDistanceThreshold;
 
+// When close (ratio near 0), use MinSmoothingFactor (slow)
+// When far (ratio near 1), use MaxSmoothingFactor (fast)
 float adaptiveSmoothingFactor = MathHelper.Lerp(
-    GameConstants.MaxSmoothingFactor,
     GameConstants.MinSmoothingFactor,
+    GameConstants.MaxSmoothingFactor,
     MathHelper.Clamp(distanceSquared / thresholdSquared, 0f, 1f)
 );
 ```

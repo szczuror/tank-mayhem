@@ -3,17 +3,19 @@
 public class TankState
 {
     public const int MaxHealth = 100;
-    
     public byte Id { get; set; }
     public float X { get; set; }
     public float Y { get; set; }
-    
     public float HullRotation { get; set; }
     public float TurretRotation { get; set; }
-    
     public int Health { get; set; } = MaxHealth;
     public int Kills { get; set; } = 0;
     public string Name { get; set; } = "Player";
+    public float TargetX { get; set; }
+    public float TargetY { get; set; }
+    public float TargetHullRotation { get; set; }
+    public float TargetTurretRotation { get; set; }
+
     public byte[] ToBytes()
     {
         using var ms = new MemoryStream();

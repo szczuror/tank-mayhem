@@ -2,7 +2,6 @@ namespace Client;
 
 public static class GameConstants
 {
-    // Gameplay constants
     public const float TankSpeed = 4.5f;
     public const float TankRotationSpeed = 0.025f;
     public const float TurretRotationSpeedDegrees = 90f;
@@ -26,4 +25,5 @@ public static class GameConstants
     public const int RespawnMaxY = 720;
     public const float KillFeedDisplayTime = 5.0f;
     public const float RecoilDamping = 0.85f;
+    public const float Smoothing = 0.15f;
 }

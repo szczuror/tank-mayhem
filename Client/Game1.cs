@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
@@ -24,7 +25,7 @@ public class Game1 : Game
     private Texture2D _bulletTexture;
     private Vector2 _lastSentPosition = Vector2.Zero;
     private float _netSendTimer = 0f;
-    private const float NetSendInterval = 0.005f;
+    private const float NetSendInterval = 0.05f;
     private float _lastSentHullRotation = 0f;
     private float _shootTimer = 0f;
     private const float ShootDelay = 3.0f;
@@ -46,6 +47,11 @@ public class Game1 : Game
     private List<KillMessage> _killFeed = new List<KillMessage>();
     private bool _isEnteringNick = true;
     private string _nickBuffer = "";
+    
+    private List<Rectangle> _obstacles = new List<Rectangle>();
+    private List<string> _mapLines = new List<string>();
+    private int _tileSize = 256;
+    private Texture2D _wallTexture;
     
     public Game1()
     {
@@ -93,6 +99,8 @@ public class Game1 : Game
                 }
             }
         };
+        
+        LoadMap("map.txt");
 
         Task.Run((() => ListenFromServer()));
         
@@ -109,7 +117,26 @@ public class Game1 : Game
                 if (result.Buffer[0] == 1)
                 {
                     var incomingTank = TankState.FromBytes(result.Buffer);
-                    _otherTanks[incomingTank.Id] = incomingTank;
+                    if (_otherTanks.ContainsKey(incomingTank.Id))
+                    {
+                        var existing = _otherTanks[incomingTank.Id];
+        
+                        existing.TargetX = incomingTank.X;
+                        existing.TargetY = incomingTank.Y;
+                        existing.TargetHullRotation = incomingTank.HullRotation;
+                        existing.TargetTurretRotation = incomingTank.TurretRotation;
+        
+                        existing.Health = incomingTank.Health;
+                        existing.Kills = incomingTank.Kills;
+                    }
+                    else
+                    {
+                        incomingTank.TargetX = incomingTank.X;
+                        incomingTank.TargetY = incomingTank.Y;
+                        incomingTank.TargetHullRotation = incomingTank.HullRotation;
+                        incomingTank.TargetTurretRotation = incomingTank.TurretRotation;
+                        _otherTanks[incomingTank.Id] = incomingTank;
+                    }
                 }
                 else if (result.Buffer[0] == 2)
                 {
@@ -182,6 +209,7 @@ public class Game1 : Game
         _explosionSheet = Content.Load<Texture2D>("assets/PNG/Effects/Explosion_merged");
         _explosionAnimation = new Animation(_explosionSheet.Width / 8, _explosionSheet.Height, 8, 75);
         _groundTexture = Content.Load<Texture2D>("assets/Texture/TXTilesetGrass");
+        _wallTexture = Content.Load<Texture2D>("assets/Texture/metalbox");
     }
     
     protected override void Dispose(bool disposing)
@@ -211,7 +239,18 @@ public class Game1 : Game
         bool hasChanged = false;
         
         UpdateCamera();
-        
+
+        foreach (var other in _otherTanks.Values)
+        {
+            other.X = MathHelper.Lerp(other.X, other.TargetX, GameConstants.Smoothing);
+            other.Y = MathHelper.Lerp(other.Y, other.TargetY, GameConstants.Smoothing);
+
+            other.HullRotation += MathHelper.WrapAngle(other.TargetHullRotation - other.HullRotation) *
+                                  GameConstants.Smoothing;
+            other.TurretRotation += MathHelper.WrapAngle(other.TargetTurretRotation - other.TurretRotation) *
+                                    GameConstants.Smoothing;
+        }
+
         if (_shootTimer > 0)
         {
             _shootTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -451,8 +490,30 @@ public class Game1 : Game
         
         _cameraMatrix = Matrix.CreateTranslation(-_myTank.X + shakeOffset.X, -_myTank.Y + shakeOffset.Y, 0) * Matrix.CreateTranslation(screenCenter.X, screenCenter.Y, 0);
     }
+    
+    private void LoadMap(string filePath)
+    {
+        if (!System.IO.File.Exists(filePath))
+        {
+            Console.WriteLine("BŁĄD: Nie znaleziono pliku mapy!");
+            return;
+        }
+        _obstacles.Clear();
+        _mapLines = System.IO.File.ReadAllLines(filePath).ToList();
+
+        for (int y = 0; y < _mapLines.Count; y++)
+        {
+            for (int x = 0; x < _mapLines[y].Length; x++)
+            {
+                if (_mapLines[y][x] == '#')
+                {
+                    _obstacles.Add(new Rectangle(x * _tileSize, y * _tileSize, _tileSize, _tileSize));
+                }
+            }
+        }
+    }
     private void DrawTank(TankState tank, float reloadProgress)
-{
+    {
     Vector2 tankPosition = new Vector2(tank.X, tank.Y);
 
     Vector2 hullOrigin = new Vector2(_hullTexture.Width / 2f, _hullTexture.Height * 0.65f);
@@ -528,11 +589,26 @@ public class Game1 : Game
         
         _spriteBatch.Begin(transformMatrix: _cameraMatrix, samplerState: SamplerState.LinearWrap);       
         
-        for (int x = 0; x < MapWidth; x += _groundTexture.Width)
+        // for (int x = 0; x < MapWidth; x += _groundTexture.Width)
+        // {
+        //     for (int y = 0; y < MapHeight; y += _groundTexture.Height)
+        //     {
+        //         _spriteBatch.Draw(_groundTexture, new Vector2(x, y), Color.White);
+        //     }
+        // }
+        
+        for (int y = 0; y < _mapLines.Count; y++)
         {
-            for (int y = 0; y < MapHeight; y += _groundTexture.Height)
+            for (int x = 0; x < _mapLines[y].Length; x++)
             {
-                _spriteBatch.Draw(_groundTexture, new Vector2(x, y), Color.White);
+                Vector2 pos = new Vector2(x * _tileSize, y * _tileSize);
+        
+                _spriteBatch.Draw(_groundTexture, new Rectangle((int)pos.X, (int)pos.Y, _tileSize, _tileSize), Color.White);
+
+                if (_mapLines[y][x] == '#')
+                {
+                    _spriteBatch.Draw(_wallTexture, new Rectangle((int)pos.X, (int)pos.Y, _tileSize, _tileSize), Color.White);
+                }
             }
         }
         

@@ -66,32 +66,17 @@ float adaptiveSmoothingFactor = MathHelper.Lerp(
 );
 ```
 
-### 3. Interpolation Buffer
+### 3. Velocity-Based Dead Reckoning
 
 **What it does:**
-- Maintains a queue of recent tank state snapshots with timestamps
-- Enables time-delayed playback of received updates
-- Smooths out packet jitter and handles out-of-order delivery
+- Tracks velocity from position changes over time
+- Uses velocity to predict positions when network updates are delayed
+- Smoothly interpolates to predicted positions
 
 **Benefits:**
-- More consistent playback timing
-- Handles network jitter gracefully
-- Can recover from temporary packet loss
-
-**Implementation:**
-```csharp
-// Store snapshots with timestamps
-_interpolationBuffer[incomingTank.Id].Enqueue(new TankStateSnapshot
-{
-    X = incomingTank.X,
-    Y = incomingTank.Y,
-    HullRotation = incomingTank.HullRotation,
-    TurretRotation = incomingTank.TurretRotation,
-    Timestamp = _totalGameTime,
-    VelocityX = incomingTank.VelocityX,
-    VelocityY = incomingTank.VelocityY
-});
-```
+- Tanks don't freeze when updates are delayed
+- Smoother visual appearance under all network conditions
+- Better handling of packet loss
 
 ### 4. Performance Optimizations
 
@@ -141,17 +126,14 @@ These can be tuned in `GameConstants.cs`:
 | `MaxSmoothingFactor` | 0.3 | Slow interpolation when close to target |
 | `SmoothingDistanceThreshold` | 100.0 | Distance at which smoothing transitions |
 
-Note: The interpolation buffer is currently implemented with a fixed size of 10 snapshots rather than a time-based delay.
-
 ## Tuning Guide
 
 ### For High Latency Connections (200ms+)
 - Increase `MaxExtrapolationTime` to 0.8-1.0s
-- Increase buffer size in interpolation queue (currently 10)
-- This adds more buffering and prediction
+- This adds more prediction time
 
 ### For Jittery Connections
-- Increase buffer size in interpolation queue (e.g., to 15-20)
+- Increase `MaxSmoothingFactor` (e.g., 0.4)
 - This smooths out packet arrival irregularities
 
 ### For LAN/Low Latency

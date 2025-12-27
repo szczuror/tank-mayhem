@@ -396,13 +396,20 @@ public class Game1 : Game
 
             bool bulletRemoved = false;
 
-            // Check collision with all tanks
+            // Check collision with all tanks - using squared distance for better performance
             List<TankState> allTanks = new List<TankState>(_otherTanks.Values);
             if (_myTank != null) allTanks.Add(_myTank);
             
+            float tankRadiusSquared = GameConstants.TankRadius * GameConstants.TankRadius;
+            
             foreach (var other in allTanks)
             {
-                if (Vector2.Distance(b.Position, new Vector2(other.X, other.Y)) < GameConstants.TankRadius)
+                // Use squared distance to avoid expensive sqrt operation
+                float dx = b.Position.X - other.X;
+                float dy = b.Position.Y - other.Y;
+                float distanceSquared = dx * dx + dy * dy;
+                
+                if (distanceSquared < tankRadiusSquared)
                 {
                     _explosions.Add(new Explosion { Position = b.Position });
             

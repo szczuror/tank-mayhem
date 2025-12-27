@@ -11,6 +11,7 @@ public static class GameConstants
     public const float BulletSpeed = 20f;
     public const float BulletLifetime = 4.0f;
     public const int MaxNicknameLength = 15;
+    private const float NetSendInterval = 0.05f;
     public const float RotationThresholdDegrees = 0.5f;
     public const float PositionThreshold = 1.0f;
     public const float ShakeIntensityOnShoot = 35f;
@@ -28,6 +29,9 @@ public static class GameConstants
     public const float Smoothing = 0.15f;
     
     // Improved interpolation constants
+    // InterpolationDelay: Buffer time for smoother playback under varying network conditions
+    // MaxExtrapolationTime: Maximum time to predict movement before falling back to direct interpolation
+    // Adaptive smoothing: Adjust interpolation speed based on distance from target
     public const float InterpolationDelay = 0.1f; // 100ms buffer for smoother playback
     public const float MaxExtrapolationTime = 0.5f; // Max time to predict ahead
     public const float MinSmoothingFactor = 0.1f; // Faster interpolation when far from target

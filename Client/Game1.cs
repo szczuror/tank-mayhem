@@ -272,13 +272,13 @@ public class Game1 : Game
             float dx = other.X - other.TargetX;
             float dy = other.Y - other.TargetY;
             float distanceSquared = dx * dx + dy * dy;
-            float distance = (float)Math.Sqrt(distanceSquared);
+            float thresholdSquared = GameConstants.SmoothingDistanceThreshold * GameConstants.SmoothingDistanceThreshold;
             
             // Use faster smoothing when far from target, slower when close
             float adaptiveSmoothingFactor = MathHelper.Lerp(
                 GameConstants.MaxSmoothingFactor,
                 GameConstants.MinSmoothingFactor,
-                MathHelper.Clamp(distance / GameConstants.SmoothingDistanceThreshold, 0f, 1f)
+                MathHelper.Clamp(distanceSquared / thresholdSquared, 0f, 1f)
             );
             
             // Dead reckoning: extrapolate based on velocity if updates are delayed

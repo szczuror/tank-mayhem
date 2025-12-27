@@ -53,16 +53,16 @@ float predictedY = other.TargetY + other.VelocityY * (float)timeSinceUpdate;
 
 **Implementation:**
 ```csharp
-// Calculate adaptive smoothing factor
-float distanceToTarget = Vector2.Distance(
-    new Vector2(other.X, other.Y),
-    new Vector2(other.TargetX, other.TargetY)
-);
+// Calculate adaptive smoothing factor using squared distance for performance
+float dx = other.X - other.TargetX;
+float dy = other.Y - other.TargetY;
+float distanceSquared = dx * dx + dy * dy;
+float thresholdSquared = GameConstants.SmoothingDistanceThreshold * GameConstants.SmoothingDistanceThreshold;
 
 float adaptiveSmoothingFactor = MathHelper.Lerp(
     GameConstants.MaxSmoothingFactor,
     GameConstants.MinSmoothingFactor,
-    MathHelper.Clamp(distanceToTarget / GameConstants.SmoothingDistanceThreshold, 0f, 1f)
+    MathHelper.Clamp(distanceSquared / thresholdSquared, 0f, 1f)
 );
 ```
 

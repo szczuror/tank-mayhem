@@ -29,9 +29,9 @@ public static class GameConstants
     
     // Improved interpolation constants
     // MaxExtrapolationTime: Maximum time to predict movement before falling back to direct interpolation
-    // Adaptive smoothing: Adjust interpolation speed based on distance from target
+    // Adaptive smoothing: Higher factor = faster convergence, lower factor = slower convergence
     public const float MaxExtrapolationTime = 0.5f; // Max time to predict ahead
-    public const float MinSmoothingFactor = 0.1f; // Faster interpolation when far from target
-    public const float MaxSmoothingFactor = 0.3f; // Slower interpolation when close to target
+    public const float SmoothingFactorNear = 0.1f; // Slow interpolation when close to target
+    public const float SmoothingFactorFar = 0.3f; // Fast interpolation when far from target
     public const float SmoothingDistanceThreshold = 100f; // Distance at which to adjust smoothing
 }

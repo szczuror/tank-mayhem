@@ -276,8 +276,8 @@ public class Game1 : Game
             
             // Use faster smoothing when far from target, slower when close
             float adaptiveSmoothingFactor = MathHelper.Lerp(
-                GameConstants.MinSmoothingFactor,
-                GameConstants.MaxSmoothingFactor,
+                GameConstants.SmoothingFactorNear,
+                GameConstants.SmoothingFactorFar,
                 MathHelper.Clamp(distanceSquared / thresholdSquared, 0f, 1f)
             );
             

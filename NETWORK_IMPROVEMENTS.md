@@ -59,11 +59,11 @@ float dy = other.Y - other.TargetY;
 float distanceSquared = dx * dx + dy * dy;
 float thresholdSquared = GameConstants.SmoothingDistanceThreshold * GameConstants.SmoothingDistanceThreshold;
 
-// When close (ratio near 0), use MinSmoothingFactor (slow)
-// When far (ratio near 1), use MaxSmoothingFactor (fast)
+// When close (ratio near 0), use SmoothingFactorNear (slow, 0.1)
+// When far (ratio near 1), use SmoothingFactorFar (fast, 0.3)
 float adaptiveSmoothingFactor = MathHelper.Lerp(
-    GameConstants.MinSmoothingFactor,
-    GameConstants.MaxSmoothingFactor,
+    GameConstants.SmoothingFactorNear,
+    GameConstants.SmoothingFactorFar,
     MathHelper.Clamp(distanceSquared / thresholdSquared, 0f, 1f)
 );
 ```
@@ -124,9 +124,11 @@ These can be tuned in `GameConstants.cs`:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `MaxExtrapolationTime` | 0.5s | Max time to predict ahead before falling back |
-| `MinSmoothingFactor` | 0.1 | Fast interpolation when far from target |
-| `MaxSmoothingFactor` | 0.3 | Slow interpolation when close to target |
+| `SmoothingFactorNear` | 0.1 | Slow interpolation when close to target |
+| `SmoothingFactorFar` | 0.3 | Fast interpolation when far from target |
 | `SmoothingDistanceThreshold` | 100.0 | Distance at which smoothing transitions |
+
+Note: Higher smoothing factor = faster convergence (larger lerp step)
 
 ## Tuning Guide
 
@@ -135,7 +137,7 @@ These can be tuned in `GameConstants.cs`:
 - This adds more prediction time
 
 ### For Jittery Connections
-- Increase `MaxSmoothingFactor` (e.g., 0.4)
+- Increase `SmoothingFactorFar` (e.g., 0.4)
 - This smooths out packet arrival irregularities
 
 ### For LAN/Low Latency
@@ -143,12 +145,12 @@ These can be tuned in `GameConstants.cs`:
 - This reduces input lag and feels more responsive
 
 ### For Reducing Rubber-Banding
-- Decrease `MinSmoothingFactor` (e.g., 0.05)
+- Increase `SmoothingFactorFar` (e.g., 0.4-0.5)
 - Increase `SmoothingDistanceThreshold` (e.g., 150)
 - This makes distant tanks catch up faster
 
 ### For Smoother Animation
-- Increase `MaxSmoothingFactor` (e.g., 0.4)
+- Decrease `SmoothingFactorNear` (e.g., 0.05)
 - Decrease `SmoothingDistanceThreshold` (e.g., 75)
 - This makes nearby tanks move more smoothly
 
@@ -157,7 +159,7 @@ These can be tuned in `GameConstants.cs`:
 ### Velocity Calculation
 Velocity is calculated as the position delta divided by time delta between updates:
 ```
-velocity = (newPosition - oldPosition) / timeDelta
+velocity (units/second) = (newPosition - oldPosition) / timeDelta (seconds)
 ```
 
 ### Dead Reckoning Formula

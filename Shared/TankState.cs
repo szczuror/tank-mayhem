@@ -36,6 +36,8 @@ public class TankState
         writer.Write(TurretRotation);
         writer.Write(Health);
         writer.Write(Kills);
+        writer.Write(VelocityX);
+        writer.Write(VelocityY);
         return ms.ToArray();
     }
 
@@ -44,7 +46,8 @@ public class TankState
         using var ms = new MemoryStream(data);
         using var reader = new BinaryReader(ms);
         reader.ReadByte();
-        return new TankState {
+        
+        var tank = new TankState {
             Id = reader.ReadByte(),
             Name = reader.ReadString(),
             X = reader.ReadSingle(),
@@ -54,5 +57,14 @@ public class TankState
             Health = reader.ReadInt32(),
             Kills = reader.ReadInt32(),
         };
+        
+        // Read velocity if available (backwards compatibility)
+        if (ms.Position < ms.Length)
+        {
+            tank.VelocityX = reader.ReadSingle();
+            tank.VelocityY = reader.ReadSingle();
+        }
+        
+        return tank;
     }
 }

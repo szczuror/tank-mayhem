@@ -136,26 +136,25 @@ These can be tuned in `GameConstants.cs`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `InterpolationDelay` | 0.1s | Buffer time for smoother playback |
 | `MaxExtrapolationTime` | 0.5s | Max time to predict ahead before falling back |
 | `MinSmoothingFactor` | 0.1 | Fast interpolation when far from target |
 | `MaxSmoothingFactor` | 0.3 | Slow interpolation when close to target |
 | `SmoothingDistanceThreshold` | 100.0 | Distance at which smoothing transitions |
 
+Note: The interpolation buffer is currently implemented with a fixed size of 10 snapshots rather than a time-based delay.
+
 ## Tuning Guide
 
 ### For High Latency Connections (200ms+)
-- Increase `InterpolationDelay` to 0.15-0.2s
 - Increase `MaxExtrapolationTime` to 0.8-1.0s
+- Increase buffer size in interpolation queue (currently 10)
 - This adds more buffering and prediction
 
 ### For Jittery Connections
-- Increase `InterpolationDelay` to 0.15s
-- Increase buffer size in interpolation queue
+- Increase buffer size in interpolation queue (e.g., to 15-20)
 - This smooths out packet arrival irregularities
 
 ### For LAN/Low Latency
-- Decrease `InterpolationDelay` to 0.05s
 - Decrease `MaxExtrapolationTime` to 0.3s
 - This reduces input lag and feels more responsive
 

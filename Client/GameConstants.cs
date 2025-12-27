@@ -29,10 +29,8 @@ public static class GameConstants
     public const float Smoothing = 0.15f;
     
     // Improved interpolation constants
-    // InterpolationDelay: Buffer time for smoother playback under varying network conditions
     // MaxExtrapolationTime: Maximum time to predict movement before falling back to direct interpolation
     // Adaptive smoothing: Adjust interpolation speed based on distance from target
-    public const float InterpolationDelay = 0.1f; // 100ms buffer for smoother playback
     public const float MaxExtrapolationTime = 0.5f; // Max time to predict ahead
     public const float MinSmoothingFactor = 0.1f; // Faster interpolation when far from target
     public const float MaxSmoothingFactor = 0.3f; // Slower interpolation when close to target

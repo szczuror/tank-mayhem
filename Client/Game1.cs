@@ -54,8 +54,9 @@ public class Game1 : Game
     private Texture2D _wallTexture;
 
     private string _serverIp;
+    private int _serverPort;
     
-    public Game1(string ip)
+    public Game1(string ip, int port)
     {
         _graphics = new GraphicsDeviceManager(this);
         _graphics.PreferredBackBufferWidth = 1920;
@@ -65,12 +66,13 @@ public class Game1 : Game
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
         _serverIp = ip;
+        _serverPort = port;
     }
 
     protected override void Initialize()
     {
         _networkClient = new UdpClient();
-        _networkClient.Connect(_serverIp, 12345);
+        _networkClient.Connect(_serverIp, _serverPort);
         
         _myTank = null;
         
@@ -96,7 +98,7 @@ public class Game1 : Game
                     UpdateCamera();
                     _isEnteringNick = false;
                 }
-                else if (!char.IsControl(e.Character) && _nickBuffer.Length < GameConstants.MaxNicknameLength)
+                else if (e.Character >= 32 && e.Character <= 126 && _nickBuffer.Length < GameConstants.MaxNicknameLength)
                 {
                     _nickBuffer += e.Character;
                 }

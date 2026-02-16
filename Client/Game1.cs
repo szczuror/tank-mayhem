@@ -52,10 +52,15 @@ public class Game1 : Game
     private int _previousScrollValue = 0;
     
     private List<Rectangle> _obstacles = new List<Rectangle>();
+    private List<Rectangle> _shadowObstacles = new List<Rectangle>();
     private List<string> _mapLines = new List<string>();
     private int _tileSize = 256;
     private Texture2D _wallTexture;
-
+    private RenderTarget2D _lightMask;
+    private Texture2D _lightTexture;
+    private BlendState _multiplyBlend;
+    private BasicEffect _shadowEffect;
+    
     private string _serverIp;
     private int _serverPort;
     
@@ -218,6 +223,20 @@ public class Game1 : Game
         _explosionAnimation = new Animation(_explosionSheet.Width / 8, _explosionSheet.Height, 8, 75);
         _groundTexture = Content.Load<Texture2D>("assets/Texture/TXTilesetGrass");
         _wallTexture = Content.Load<Texture2D>("assets/Texture/metalbox");
+        
+        _lightMask = new RenderTarget2D(GraphicsDevice, GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
+        _lightTexture = CreateSoftCircleTexture(2400);
+        _shadowEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true };
+        
+        _multiplyBlend = new BlendState
+        {
+            ColorBlendFunction = BlendFunction.Add,
+            ColorSourceBlend = Blend.DestinationColor,
+            ColorDestinationBlend = Blend.Zero,
+            AlphaBlendFunction = BlendFunction.Add,
+            AlphaSourceBlend = Blend.DestinationAlpha,
+            AlphaDestinationBlend = Blend.Zero
+        };
     }
     
     protected override void Dispose(bool disposing)
@@ -531,33 +550,73 @@ public class Game1 : Game
             Matrix.CreateTranslation(screenCenter.X, screenCenter.Y, 0);
     }
     
-    private void LoadMap(string filePath)
+private void LoadMap(string filePath)
+{
+    if (!System.IO.File.Exists(filePath))
     {
-        if (!System.IO.File.Exists(filePath))
-        {
-            Console.WriteLine("BŁĄD: Nie znaleziono pliku mapy!");
-            return;
-        }
-        _obstacles.Clear();
-        _mapLines = System.IO.File.ReadAllLines(filePath).ToList();
+        Console.WriteLine("BŁĄD: Nie znaleziono pliku mapy!");
+        return;
+    }
+    
+    _obstacles.Clear();
+    _shadowObstacles.Clear();
+    _mapLines = System.IO.File.ReadAllLines(filePath).ToList();
 
-        for (int y = 0; y < _mapLines.Count; y++)
+    if (_mapLines.Count > 0)
+    {
+        MapWidth = _mapLines[0].Length * _tileSize;
+        MapHeight = _mapLines.Count * _tileSize;
+    }
+
+    int cols = _mapLines[0].Length;
+    int rows = _mapLines.Count;
+    bool[,] visited = new bool[cols, rows];
+
+    for (int y = 0; y < rows; y++)
+    {
+        for (int x = 0; x < cols; x++)
         {
-            for (int x = 0; x < _mapLines[y].Length; x++)
+            if (_mapLines[y][x] == '#')
             {
-                if (_mapLines[y][x] == '#')
+                _obstacles.Add(new Rectangle(x * _tileSize, y * _tileSize, _tileSize, _tileSize));
+
+                if (!visited[x, y])
                 {
-                    _obstacles.Add(new Rectangle(x * _tileSize, y * _tileSize, _tileSize, _tileSize));
+                    int width = 0;
+                    while (x + width < cols && _mapLines[y][x + width] == '#' && !visited[x + width, y])
+                    {
+                        width++;
+                    }
+
+                    int height = 0;
+                    bool canExpandDown = true;
+                    while (y + height < rows && canExpandDown)
+                    {
+                        for (int i = 0; i < width; i++)
+                        {
+                            if (_mapLines[y + height][x + i] != '#' || visited[x + i, y + height])
+                            {
+                                canExpandDown = false;
+                                break;
+                            }
+                        }
+                        if (canExpandDown) height++;
+                    }
+
+                    for (int dy = 0; dy < height; dy++)
+                    {
+                        for (int dx = 0; dx < width; dx++)
+                        {
+                            visited[x + dx, y + dy] = true;
+                        }
+                    }
+
+                    _shadowObstacles.Add(new Rectangle(x * _tileSize, y * _tileSize, width * _tileSize, height * _tileSize));
                 }
             }
         }
-        
-        if (_mapLines.Count > 0)
-        {
-            MapWidth = _mapLines[0].Length * _tileSize;
-            MapHeight = _mapLines.Count * _tileSize;
-        }
     }
+}
     
     private bool IsCollidingWithWall(Vector2 position, float collisionRadius)
     {
@@ -578,6 +637,114 @@ public class Game1 : Game
         }
         return false;
     }
+    
+private void DrawShadows(Vector2 lightPos)
+{
+    List<VertexPositionColor> vertices = new List<VertexPositionColor>();
+    
+    Color shadowColor = new Color(15, 15, 15); 
+
+    foreach (var rect in _shadowObstacles)
+    {
+        Vector2[] corners = {
+            new Vector2(rect.Left, rect.Top), new Vector2(rect.Right, rect.Top),
+            new Vector2(rect.Right, rect.Bottom), new Vector2(rect.Left, rect.Bottom)
+        };
+
+
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2 p1 = corners[i];
+            Vector2 p2 = corners[(i + 1) % 4];
+            
+            Vector2 edge = p2 - p1;
+            Vector2 normal = new Vector2(edge.Y, -edge.X);
+
+            Vector2 lightDir = ((p1 + p2) / 2f) - lightPos;
+
+            if (Vector2.Dot(normal, lightDir) > 0)
+            {
+                Vector2 dir1 = Vector2.Normalize(p1 - lightPos) * 4000f;
+                Vector2 dir2 = Vector2.Normalize(p2 - lightPos) * 4000f;
+
+                vertices.Add(new VertexPositionColor(new Vector3(p1, 0), shadowColor));
+                vertices.Add(new VertexPositionColor(new Vector3(p2, 0), shadowColor));
+                vertices.Add(new VertexPositionColor(new Vector3(p1 + dir1, 0), shadowColor));
+
+                vertices.Add(new VertexPositionColor(new Vector3(p2, 0), shadowColor));
+                vertices.Add(new VertexPositionColor(new Vector3(p2 + dir2, 0), shadowColor));
+                vertices.Add(new VertexPositionColor(new Vector3(p1 + dir1, 0), shadowColor));
+            }
+        }
+    }
+
+    if (vertices.Count > 0)
+    {
+        _shadowEffect.Projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 1);
+        _shadowEffect.View = _cameraMatrix;
+        _shadowEffect.World = Matrix.Identity;
+
+        GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+        GraphicsDevice.BlendState = BlendState.Opaque;
+
+        foreach (var pass in _shadowEffect.CurrentTechnique.Passes)
+        {
+            pass.Apply();
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices.ToArray(), 0, vertices.Count / 3);
+        }
+    }
+}
+    
+    private bool HasLineOfSight(Vector2 start, Vector2 end)
+    {
+        Vector2 direction = end - start;
+        float distance = direction.Length();
+    
+        if (distance == 0) return true; 
+    
+        direction.Normalize();
+    
+        float step = 32f; 
+    
+        for (float i = 0; i < distance; i += step) // TODO magic num
+        {
+            Vector2 checkPoint = start + direction * i;
+            Point pointToCheck = new Point((int)checkPoint.X, (int)checkPoint.Y);
+        
+            foreach (var obstacle in _obstacles)
+            {
+                if (obstacle.Contains(pointToCheck))
+                {
+                    return false; 
+                }
+            }
+        }
+    
+        return true;
+    }
+    
+    private Texture2D CreateSoftCircleTexture(int radius)
+    {
+        int diameter = radius * 2;
+        Texture2D tex = new Texture2D(GraphicsDevice, diameter, diameter);
+        Color[] data = new Color[diameter * diameter];
+        Vector2 center = new Vector2(radius, radius);
+    
+        for (int y = 0; y < diameter; y++)
+        {
+            for (int x = 0; x < diameter; x++)
+            {
+                float distance = Vector2.Distance(center, new Vector2(x, y));
+                float intensity = 1f - (distance / radius); 
+                if (intensity < 0) intensity = 0;
+            
+                data[y * diameter + x] = new Color(intensity, intensity, intensity, 1f);
+            }
+        }
+        tex.SetData(data);
+        return tex;
+    }
+    
     private void DrawTank(TankState tank, float reloadProgress)
     {
     Vector2 tankPosition = new Vector2(tank.X, tank.Y);
@@ -635,8 +802,6 @@ public class Game1 : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(Color.Brown);
-        
         if (_isEnteringNick)
         {
             GraphicsDevice.Clear(Color.Black);
@@ -653,22 +818,24 @@ public class Game1 : Game
             return;
         }
         
-        _spriteBatch.Begin(transformMatrix: _cameraMatrix, samplerState: SamplerState.LinearWrap);       
+        GraphicsDevice.SetRenderTarget(_lightMask);
+        GraphicsDevice.Clear(new Color(15, 15, 15));
+        _spriteBatch.Begin(transformMatrix: _cameraMatrix, blendState: BlendState.Additive);
+        Vector2 lightOrigin = new Vector2(_lightTexture.Width / 2f, _lightTexture.Height / 2f);
+        _spriteBatch.Draw(_lightTexture, new Vector2(_myTank.X, _myTank.Y), null, Color.White, 0f, lightOrigin, 1f, SpriteEffects.None, 0f);
+    
+        _spriteBatch.End();
         
-        // for (int x = 0; x < MapWidth; x += _groundTexture.Width)
-        // {
-        //     for (int y = 0; y < MapHeight; y += _groundTexture.Height)
-        //     {
-        //         _spriteBatch.Draw(_groundTexture, new Vector2(x, y), Color.White);
-        //     }
-        // }
+        DrawShadows(new Vector2(_myTank.X, _myTank.Y));
+        GraphicsDevice.SetRenderTarget(null);
+        GraphicsDevice.Clear(Color.Black);
+        _spriteBatch.Begin(transformMatrix: _cameraMatrix, samplerState: SamplerState.LinearWrap);    
         
         for (int y = 0; y < _mapLines.Count; y++)
         {
             for (int x = 0; x < _mapLines[y].Length; x++)
             {
                 Vector2 pos = new Vector2(x * _tileSize, y * _tileSize);
-        
                 _spriteBatch.Draw(_groundTexture, new Rectangle((int)pos.X, (int)pos.Y, _tileSize, _tileSize), Color.White);
 
                 if (_mapLines[y][x] == '#')
@@ -678,27 +845,44 @@ public class Game1 : Game
             }
         }
         
+        float reloadProgress = (ShootDelay - _shootTimer) / ShootDelay;
+        DrawTank(_myTank, reloadProgress);      
+        
+        Vector2 myPosition = new Vector2(_myTank.X, _myTank.Y);
         Vector2 bulletOrigin = new Vector2(_bulletTexture.Width / 2f, _bulletTexture.Height / 2f);
         foreach (var b in _bullets)
         {
-            _spriteBatch.Draw(_bulletTexture, b.Position, null, Color.White, b.Rotation, bulletOrigin, 1f, SpriteEffects.None, 0f);
+            if (HasLineOfSight(myPosition, b.Position))
+            {
+                _spriteBatch.Draw(_bulletTexture, b.Position, null, Color.White, b.Rotation, bulletOrigin, 1f, SpriteEffects.None, 0f);
+            };
         }
-
-        float reloadProgress = (ShootDelay - _shootTimer) / ShootDelay;
-        DrawTank(_myTank, reloadProgress);        
+        
         foreach (var tank in _otherTanks.Values)
         {
-            DrawTank(tank, 1.0f);
+            Vector2 enemyPosition = new Vector2(tank.X, tank.Y);
+    
+            if (HasLineOfSight(myPosition, enemyPosition))
+            {
+                DrawTank(tank, 1.0f);
+            }
         }
         
         foreach (var ex in _explosions)
         {
-            Rectangle sourceRect = _explosionAnimation.Frames[ex.CurrentFrame];
-            Vector2 origin = new Vector2(sourceRect.Width / 2f, sourceRect.Height / 2f);
+            if (HasLineOfSight(myPosition, ex.Position))
+            {
+                Rectangle sourceRect = _explosionAnimation.Frames[ex.CurrentFrame];
+                Vector2 origin = new Vector2(sourceRect.Width / 2f, sourceRect.Height / 2f);
         
-            _spriteBatch.Draw(_explosionSheet, ex.Position, sourceRect, Color.White, 0f, origin, 1.5f, SpriteEffects.None, 0f);
+                _spriteBatch.Draw(_explosionSheet, ex.Position, sourceRect, Color.White, 0f, origin, 1.5f, SpriteEffects.None, 0f);
+            }
         }
         
+        _spriteBatch.End();
+        
+        _spriteBatch.Begin(blendState: _multiplyBlend);
+        _spriteBatch.Draw(_lightMask, Vector2.Zero, Color.White);
         _spriteBatch.End();
         
         _spriteBatch.Begin();

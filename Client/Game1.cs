@@ -91,11 +91,12 @@ public class Game1 : Game
                     _nickBuffer = _nickBuffer.Remove(_nickBuffer.Length - 1);
                 else if (e.Key == Keys.Enter && _nickBuffer.Length > 0)
                 {
+                    Vector2 safeSpawn = GetRandomSafeSpawnPosition();
                     _myTank = new TankState { 
                         Id = (byte)_random.Next(1, 255), 
                         Name = _nickBuffer, 
-                        X = _random.Next(GameConstants.MinSpawnX, MapWidth - GameConstants.MinSpawnX), 
-                        Y = _random.Next(GameConstants.MinSpawnY, MapHeight - GameConstants.MinSpawnY)
+                        X = safeSpawn.X, 
+                        Y = safeSpawn.Y
                     };
     
                     _lastSentTurretRotation = _myTank.TurretRotation;
@@ -225,7 +226,7 @@ public class Game1 : Game
         _wallTexture = Content.Load<Texture2D>("assets/Texture/metalbox");
         
         _lightMask = new RenderTarget2D(GraphicsDevice, GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
-        _lightTexture = CreateSoftCircleTexture(2400);
+        _lightTexture = CreateSoftCircleTexture(2000);
         _shadowEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true };
         
         _multiplyBlend = new BlendState
@@ -482,8 +483,9 @@ public class Game1 : Game
         if (_myTank.Health <= 0)
         {
             _myTank.Health = TankState.MaxHealth;
-            _myTank.X = _random.Next(GameConstants.RespawnMinX, GameConstants.RespawnMaxX);
-            _myTank.Y = _random.Next(GameConstants.RespawnMinY, GameConstants.RespawnMaxY);
+            Vector2 safeSpawn = GetRandomSafeSpawnPosition();
+            _myTank.X = safeSpawn.X;
+            _myTank.Y = safeSpawn.Y;
             hasChanged = true;
         }
         
@@ -743,6 +745,26 @@ private void DrawShadows(Vector2 lightPos)
         }
         tex.SetData(data);
         return tex;
+    }
+    
+    private Vector2 GetRandomSafeSpawnPosition()
+    {
+        int maxAttempts = 100;
+    
+        for (int i = 0; i < maxAttempts; i++)
+        {
+            int margin = 100; 
+            float testX = _random.Next(margin, MapWidth - margin);
+            float testY = _random.Next(margin, MapHeight - margin);
+            Vector2 testPos = new Vector2(testX, testY);
+
+            if (!IsCollidingWithWall(testPos, GameConstants.TankRadius * 1.2f))
+            {
+                return testPos; // Znaleźliśmy puste miejsce!
+            }
+        }
+
+        return new Vector2(MapWidth / 2f, MapHeight / 2f);
     }
     
     private void DrawTank(TankState tank, float reloadProgress)

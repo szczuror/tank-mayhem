@@ -51,6 +51,11 @@ public class Game1 : Game
     private float _targetZoom = 1.0f;
     private int _previousScrollValue = 0;
     
+    private float _currentBoostFuel = 5.0f;
+    private const float MaxBoostFuel = 5.0f;
+    private const float BoostMultiplier = 2f;
+    private const float BoostRegenRate = 0.5f;
+    
     private List<Rectangle> _obstacles = new List<Rectangle>();
     private List<Rectangle> _shadowObstacles = new List<Rectangle>();
     private List<string> _mapLines = new List<string>();
@@ -409,17 +414,48 @@ public class Game1 : Game
             (float)Math.Sin(_myTank.HullRotation - MathHelper.PiOver2)
         );
         
+        // Vector2 velocity = Vector2.Zero;
+        //
+        // if (kState.IsKeyDown(Keys.W))
+        // {
+        //     velocity += directionLooking * GameConstants.TankSpeed;
+        //     hasChanged = true;
+        // }
+        //
+        // if (kState.IsKeyDown(Keys.S))
+        // {
+        //     velocity -= directionLooking * GameConstants.TankSpeed * 0.5f;
+        //     hasChanged = true;
+        // }
+        
         Vector2 velocity = Vector2.Zero;
+
+        bool isMovingForwardsOrBackwards = kState.IsKeyDown(Keys.W) || kState.IsKeyDown(Keys.S);
+        bool isTryingToBoost = kState.IsKeyDown(Keys.LeftShift) || kState.IsKeyDown(Keys.RightShift);
+
+        float currentSpeed = GameConstants.TankSpeed;
+
+        if (isMovingForwardsOrBackwards && isTryingToBoost && _currentBoostFuel > 0)
+        {
+            currentSpeed *= BoostMultiplier;
+            _currentBoostFuel -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_currentBoostFuel < 0) _currentBoostFuel = 0;
+        }
+        else if (!isTryingToBoost)
+        {
+            _currentBoostFuel += BoostRegenRate * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_currentBoostFuel > MaxBoostFuel) _currentBoostFuel = MaxBoostFuel;
+        }
         
         if (kState.IsKeyDown(Keys.W))
         {
-            velocity += directionLooking * GameConstants.TankSpeed;
+            velocity += directionLooking * currentSpeed;
             hasChanged = true;
         }
-        
+
         if (kState.IsKeyDown(Keys.S))
         {
-            velocity -= directionLooking * GameConstants.TankSpeed * 0.5f;
+            velocity -= directionLooking * currentSpeed * 0.5f; 
             hasChanged = true;
         }
         
@@ -819,6 +855,19 @@ private void DrawShadows(Vector2 lightPos)
 
         _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, reloadY, barWidth, reloadBarHeight), Color.Black * 0.5f);
         _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, reloadY, currentReloadWidth, reloadBarHeight), Color.Yellow);
+    }
+    
+    // fuel
+    if (_myTank != null && tank.Id == _myTank.Id)
+    {
+        int boostBarHeight = 5;
+        int boostY = (reloadProgress < 1.0f) ? (int)barPos.Y + 20 : (int)barPos.Y + 12; 
+        
+        float boostPercent = _currentBoostFuel / MaxBoostFuel;
+        int currentBoostWidth = (int)(barWidth * boostPercent);
+
+        _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, boostY, barWidth, boostBarHeight), Color.Black * 0.5f);
+        _spriteBatch.Draw(_pixel, new Rectangle((int)barPos.X, boostY, currentBoostWidth, boostBarHeight), Color.Cyan);
     }
 }
 

@@ -37,8 +37,8 @@ public class Game1 : Game
     private Texture2D _explosionSheet;
     private Animation _explosionAnimation;
     private List<Explosion> _explosions = new List<Explosion>();
-    private const int MapWidth = 3072;
-    private const int MapHeight = 3072;
+    private int MapWidth;
+    private int MapHeight;
     private Texture2D _groundTexture;
     private SoundEffect _shotSound, _reloadSound;
     private Matrix _cameraMatrix;
@@ -47,6 +47,9 @@ public class Game1 : Game
     private List<KillMessage> _killFeed = new List<KillMessage>();
     private bool _isEnteringNick = true;
     private string _nickBuffer = "";
+    private float _cameraZoom = 1.0f;
+    private float _targetZoom = 1.0f;
+    private int _previousScrollValue = 0;
     
     private List<Rectangle> _obstacles = new List<Rectangle>();
     private List<string> _mapLines = new List<string>();
@@ -243,6 +246,17 @@ public class Game1 : Game
         var mState = Mouse.GetState();
         bool hasChanged = false;
         
+        int scrollDelta = mState.ScrollWheelValue - _previousScrollValue;
+        if (scrollDelta != 0)
+        {
+            if (scrollDelta > 0) _targetZoom += 0.2f;
+            else _targetZoom -= 0.2f;
+
+            _targetZoom = MathHelper.Clamp(_targetZoom, 0.4f, 2.5f); 
+        }
+        _previousScrollValue = mState.ScrollWheelValue;
+        _cameraZoom = MathHelper.Lerp(_cameraZoom, _targetZoom, GameConstants.Smoothing);
+        
         UpdateCamera();
 
         foreach (var other in _otherTanks.Values)
@@ -308,6 +322,13 @@ public class Game1 : Game
             b.Lifetime -= (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             bool bulletRemoved = false;
+            
+            if (IsCollidingWithWall(b.Position, 10f))
+            {
+                _explosions.Add(new Explosion { Position = b.Position });
+                _bullets.RemoveAt(i);
+                continue;
+            }
 
             // Check collision with all tanks
             List<TankState> allTanks = new List<TankState>(_otherTanks.Values);
@@ -368,26 +389,24 @@ public class Game1 : Game
             (float)Math.Sin(_myTank.HullRotation - MathHelper.PiOver2)
         );
         
+        Vector2 velocity = Vector2.Zero;
+        
         if (kState.IsKeyDown(Keys.W))
         {
-            _myTank.X += directionLooking.X * GameConstants.TankSpeed;
-            _myTank.Y += directionLooking.Y * GameConstants.TankSpeed;
+            velocity += directionLooking * GameConstants.TankSpeed;
             hasChanged = true;
         }
         
         if (kState.IsKeyDown(Keys.S))
         {
-            _myTank.X -= directionLooking.X * GameConstants.TankSpeed * 0.5f;
-            _myTank.Y -= directionLooking.Y * GameConstants.TankSpeed * 0.5f;
+            velocity -= directionLooking * GameConstants.TankSpeed * 0.5f;
             hasChanged = true;
         }
         
         // Apply recoil before clamping position
         if (_recoilVelocity.Length() > 0.1f)
         {
-            _myTank.X += _recoilVelocity.X;
-            _myTank.Y += _recoilVelocity.Y;
-
+            velocity += _recoilVelocity;
             _recoilVelocity *= GameConstants.RecoilDamping;
 
             hasChanged = true;
@@ -395,6 +414,18 @@ public class Game1 : Game
         else
         {
             _recoilVelocity = Vector2.Zero;
+        }
+        
+        float hitBoxRadius = GameConstants.TankRadius * 0.6f;
+
+        if (!IsCollidingWithWall(new Vector2(_myTank.X + velocity.X, _myTank.Y), hitBoxRadius))
+        {
+            _myTank.X += velocity.X;
+        }
+
+        if (!IsCollidingWithWall(new Vector2(_myTank.X, _myTank.Y + velocity.Y), hitBoxRadius))
+        {
+            _myTank.Y += velocity.Y;
         }
         
         _myTank.X = MathHelper.Clamp(_myTank.X, 0, MapWidth);
@@ -493,7 +524,11 @@ public class Game1 : Game
             _shakeIntensity = 0f;
         }
         
-        _cameraMatrix = Matrix.CreateTranslation(-_myTank.X + shakeOffset.X, -_myTank.Y + shakeOffset.Y, 0) * Matrix.CreateTranslation(screenCenter.X, screenCenter.Y, 0);
+        // _cameraMatrix = Matrix.CreateTranslation(-_myTank.X + shakeOffset.X, -_myTank.Y + shakeOffset.Y, 0) * Matrix.CreateTranslation(screenCenter.X, screenCenter.Y, 0);
+        _cameraMatrix = 
+            Matrix.CreateTranslation(-_myTank.X + shakeOffset.X, -_myTank.Y + shakeOffset.Y, 0) * 
+            Matrix.CreateScale(_cameraZoom, _cameraZoom, 1f) *
+            Matrix.CreateTranslation(screenCenter.X, screenCenter.Y, 0);
     }
     
     private void LoadMap(string filePath)
@@ -516,6 +551,32 @@ public class Game1 : Game
                 }
             }
         }
+        
+        if (_mapLines.Count > 0)
+        {
+            MapWidth = _mapLines[0].Length * _tileSize;
+            MapHeight = _mapLines.Count * _tileSize;
+        }
+    }
+    
+    private bool IsCollidingWithWall(Vector2 position, float collisionRadius)
+    {
+        int radius = (int)collisionRadius;
+        Rectangle boundingBox = new Rectangle(
+            (int)position.X - radius, 
+            (int)position.Y - radius, 
+            radius * 2, 
+            radius * 2
+        );
+
+        foreach (var obstacle in _obstacles)
+        {
+            if (boundingBox.Intersects(obstacle))
+            {
+                return true;
+            }
+        }
+        return false;
     }
     private void DrawTank(TankState tank, float reloadProgress)
     {
